@@ -36,6 +36,94 @@ memories:
           - O, th
     served_dimensions: [D2]
 
+  l0_A:
+    size: 4096
+    r_cost: 22.9  # TODO
+    w_cost: 52.01 # TODO
+    area: 0
+    latency: 1
+    operands: [I1]
+    ports:
+      - name: w_port_1
+        type: write
+        bandwidth_min: 512
+        bandwidth_max: 512
+        allocation: 
+          - I1, fh
+      - name: r_port_1
+        type: read
+        bandwidth_min: 512
+        bandwidth_max: 512
+        allocation: 
+          - I1, tl
+    served_dimensions: [D1, D2, D3]
+
+  l0_B:
+    size: 4096
+    r_cost: 22.9  # TODO
+    w_cost: 52.01 # TODO
+    area: 0
+    latency: 1
+    operands: [I2]
+    ports:
+      - name: w_port_1
+        type: write
+        bandwidth_min: 512
+        bandwidth_max: 512
+        allocation: 
+          - I2, fh
+      - name: r_port_1
+        type: read
+        bandwidth_min: 512
+        bandwidth_max: 512
+        allocation: 
+          - I2, tl
+    served_dimensions: [D1, D2, D3]
+  
+  l0_C:
+    size: 1024
+    r_cost: 22.9  # TODO
+    w_cost: 52.01 # TODO
+    area: 0
+    latency: 1
+    operands: [O]
+    ports:
+      - name: w_port_1
+        type: write
+        bandwidth_min: 1024
+        bandwidth_max: 1024
+        allocation: 
+          - O, fh
+      - name: r_port_1
+        type: read
+        bandwidth_min: 1024
+        bandwidth_max: 1024
+        allocation: 
+          - O, tl
+    served_dimensions: [D1, D2, D3]
+  
+  l0_D:
+    size: 1024
+    r_cost: 22.9  # TODO
+    w_cost: 52.01 # TODO
+    area: 0
+    latency: 1
+    operands: [O]
+    ports:
+      - name: w_port_1
+        type: write
+        bandwidth_min: 1024
+        bandwidth_max: 1024
+        allocation: 
+          - O, fh
+      - name: r_port_1
+        type: read
+        bandwidth_min: 1024
+        bandwidth_max: 1024
+        allocation: 
+          - O, tl
+    served_dimensions: [D1, D2, D3]
+
   l1:
     size: 4194304
     r_cost: 22.9  # TODO
