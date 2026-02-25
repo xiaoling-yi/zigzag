@@ -80,48 +80,32 @@ memories:
           - I2, tl
     served_dimensions: [D1, D2, D3]
   
-  l0_C:
-    size: 1024
+  l0_CD:
+    size: 2048  # C+D
     r_cost: 22.9  # TODO
     w_cost: 52.01 # TODO
     area: 0
     latency: 1
     operands: [O]
     ports:
-      - name: w_port_1
+      - name: w_port_1  # DATA from sram write to C
         type: write
         bandwidth_min: 1024
         bandwidth_max: 1024
         allocation: 
           - O, fh
-      - name: r_port_1
+      - name: r_port_1  # DATA read from D to sram
         type: read
         bandwidth_min: 1024
         bandwidth_max: 1024
         allocation: 
-          - O, tl
-    served_dimensions: [D1, D2, D3]
-  
-  l0_D:
-    size: 1024
-    r_cost: 22.9  # TODO
-    w_cost: 52.01 # TODO
-    area: 0
-    latency: 1
-    operands: [O]
-    ports:
-      - name: w_port_1
+          - O, th
+      - name: w_port_2  # DATA from regO write to C
         type: write
         bandwidth_min: 1024
         bandwidth_max: 1024
-        allocation: 
-          - O, fh
-      - name: r_port_1
-        type: read
-        bandwidth_min: 1024
-        bandwidth_max: 1024
-        allocation: 
-          - O, tl
+        allocation:
+          - O, fl
     served_dimensions: [D1, D2, D3]
 
   l1:
