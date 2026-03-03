@@ -1,8 +1,8 @@
 - id: 0
   operator_type: Gemm
-  equation: O[d0][d1]+=I[d0][d2]*W[d2][d1]
+  equation: O[m][n]+=I[m][k]*W[k][n]
   dimension_relations: []
-  loop_dims: [D0, D1, D2]
+  loop_dims: [M, K, N]
   loop_sizes: [128, 128, 128]
   operand_precision:
     W: 8

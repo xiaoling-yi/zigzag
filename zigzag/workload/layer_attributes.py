@@ -214,7 +214,7 @@ class LayerTemporalOrdering(LayerAttribute):
             else:
                 all_loops[layer_dim] *= factor
 
-        for layer_dim in all_loops:
+        for layer_dim in list(all_loops):
             if all_loops[layer_dim] == 1:
                 del all_loops[layer_dim]
 
