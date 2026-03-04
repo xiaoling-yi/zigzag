@@ -1,4 +1,10 @@
-from enum import StrEnum
+try:
+    from enum import StrEnum
+except ImportError:  # pragma: no cover - python<3.11 compatibility
+    from enum import Enum
+
+    class StrEnum(str, Enum):
+        pass
 from typing import Generic, TypeVar
 
 from zigzag.datatypes import LayerOperand
