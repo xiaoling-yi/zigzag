@@ -214,11 +214,13 @@ class LayerTemporalOrdering(LayerAttribute):
             else:
                 all_loops[layer_dim] *= factor
 
-        for layer_dim in list(all_loops):
-            if all_loops[layer_dim] == 1:
-                del all_loops[layer_dim]
+        # Ignore explicit loop=1 entries while preserving user ordering in self.data.
+        filtered_all_loops = {layer_dim: factor for layer_dim, factor in all_loops.items() if factor != 1}
+        filtered_temporal_loop_sizes = {
+            layer_dim: factor for layer_dim, factor in temporal_loop_sizes.items() if factor != 1
+        }
 
-        return all_loops == temporal_loop_sizes
+        return filtered_all_loops == filtered_temporal_loop_sizes
 
     def remove_invalid_layer_dims(self, layer_dim_sizes: LayerDimSizes, layer_name: str = ""):
         for i, mapping in list(enumerate(self.data))[::-1]:
