@@ -75,15 +75,21 @@ class AcceleratorFactory:
     def create_non_imc_array(self) -> MultiplierArray:
         op_array_data: dict[str, Any] = self.data["operational_array"]
 
+        energy_cost = op_array_data.get("unit_energy", 0)
+        if "unit_energy" not in op_array_data and "unit_energy_mult" in op_array_data:
+            energy_cost = (op_array_data.get("unit_energy_mult", 0) + op_array_data.get("unit_energy_add", 0) + op_array_data.get("unit_energy_accum", 0)) / 3
+
         multiplier = Multiplier(
-            energy_cost=op_array_data["unit_energy"],
-            area=op_array_data["unit_area"],
+            energy_cost=energy_cost,
+            area=op_array_data.get("unit_area", 0),
         )
         oa_dims: list[str] = op_array_data["dimensions"]
         dimension_sizes: dict[OADimension, int] = {
             OADimension(oa_dim): op_array_data["sizes"][i] for i, oa_dim in enumerate(oa_dims)
         }
-        return MultiplierArray(multiplier, dimension_sizes)
+        mult_array = MultiplierArray(multiplier, dimension_sizes)
+        mult_array.flexibility_overhead = op_array_data.get("flexibility_overhead", 1.0)
+        return mult_array
 
     def create_imc_array(self) -> ImcArray:
         # From operational_array
@@ -160,7 +166,9 @@ class MemoryFactory:
             port_bw_min = port_data["bandwidth_min"]
             port_bw_max = port_data["bandwidth_max"]
             port_type = MemoryPortType(port_data["type"])
-            port = MemoryPort(port_name, port_type, port_bw_min, port_bw_max)
+            r_cost = self.data.get(f"r_cost_{port_name}")
+            w_cost = self.data.get(f"w_cost_{port_name}")
+            port = MemoryPort(port_name, port_type, port_bw_min, port_bw_max, r_cost=r_cost, w_cost=w_cost)
             memory_ports.append(port)
         return tuple(memory_ports)
 
@@ -170,8 +178,8 @@ class MemoryFactory:
             name=self.name,
             size=self.data["size"],
             mem_type=self.data["mem_type"],
-            r_cost=self.data["r_cost"],
-            w_cost=self.data["w_cost"],
+            r_cost=self.data.get("r_cost") or 0,
+            w_cost=self.data.get("w_cost") or 0,
             area=self.data["area"],
             latency=self.data["latency"],
             ports=memory_ports,

@@ -99,8 +99,12 @@ class MemoryLevel:
         port_names = [port.name for port in self.ports]
         self.bandwidths_min: dict[MemoryOperand, dict[DataDirection, int]]
         self.bandwidths_max: dict[MemoryOperand, dict[DataDirection, int]]
+        self.read_energies: dict[MemoryOperand, dict[DataDirection, float]]
+        self.write_energies: dict[MemoryOperand, dict[DataDirection, float]]
         self.bandwidths_min = {op: {data_dir: None for data_dir in DataDirection} for op in self.operands}
         self.bandwidths_max = {op: {data_dir: None for data_dir in DataDirection} for op in self.operands}
+        self.read_energies = {op: {data_dir: None for data_dir in DataDirection} for op in self.operands}
+        self.write_energies = {op: {data_dir: None for data_dir in DataDirection} for op in self.operands}
         ports_used = [False] * len(self.ports)
         for mem_op, mem_lvl in self.mem_level_of_operands.items():
             allocation_this_mem_op = self.port_alloc_raw.get_alloc_for_mem_op(mem_op)
@@ -112,6 +116,9 @@ class MemoryLevel:
                 # Save bandwidth for this mem_op and direction for faster access later.
                 self.bandwidths_min[mem_op][direction] = mem_port.bw_min
                 self.bandwidths_max[mem_op][direction] = mem_port.bw_max
+                # Save energies for this mem_op and direction for faster access later.
+                self.read_energies[mem_op][direction] = mem_port.r_cost
+                self.write_energies[mem_op][direction] = mem_port.w_cost
                 ports_used[port_idx] = True
         # Remove all ports from self.ports that are not used for this MemoryLevel (e.g. due to removal of some operands)
         self.ports = tuple([port for port, used in zip(self.ports, ports_used) if used])
@@ -123,6 +130,26 @@ class MemoryLevel:
     def get_max_bandwidth(self, operand: MemoryOperand, data_dir: DataDirection) -> int | None:
         """! Get the maximum memory bandwidth for a specific memory operand and data movement direction"""
         return self.bandwidths_max[operand][data_dir]
+
+    def get_read_energy(self, operand: MemoryOperand, data_dir: DataDirection) -> float:
+        """! Get the read energy for a specific memory operand and data movement direction.
+        If port-specific energy is defined, it returns that. Otherwise, it returns the default read energy
+        of the memory instance.
+        """
+        port_energy = self.read_energies[operand][data_dir]
+        if port_energy is not None:
+            return port_energy
+        return self.read_energy
+
+    def get_write_energy(self, operand: MemoryOperand, data_dir: DataDirection) -> float:
+        """! Get the write energy for a specific memory operand and data movement direction.
+        If port-specific energy is defined, it returns that. Otherwise, it returns the default write energy
+        of the memory instance.
+        """
+        port_energy = self.write_energies[operand][data_dir]
+        if port_energy is not None:
+            return port_energy
+        return self.write_energy
 
     @property
     def unroll_count(self) -> int:

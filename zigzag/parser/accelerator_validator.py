@@ -23,6 +23,7 @@ class AcceleratorValidator:
             "required": True,
             "valuesrules": {
                 "type": "dict",
+                "allow_unknown": True,
                 "schema": {
                     "size": {"type": "integer", "required": True},
                     "r_cost": {
@@ -115,6 +116,10 @@ class AcceleratorValidator:
                 },
                 # Non-IMC properties
                 "unit_energy": {"type": "float", "required": False},
+                "unit_energy_mult": {"type": "float", "required": False},
+                "unit_energy_add": {"type": "float", "required": False},
+                "unit_energy_accum": {"type": "float", "required": False},
+                "flexibility_overhead": {"type": "float", "required": False},
                 "unit_area": {"type": "float", "required": False},
                 # IMC properties
                 "imc_type": {
@@ -211,10 +216,25 @@ class AcceleratorValidator:
                     f"costs using CACTI."
                 )
         else:
-            if mem_data["r_cost"] is None:
-                self.invalidate(f"`r_cost` of {mem_name} is missing, and is not automatically extracted using CACTI.")
-            if mem_data["w_cost"] is None:
-                self.invalidate(f"`w_cost` of {mem_name} is missing, and is not automatically extracted using CACTI.")
+            # Check if global r_cost is provided or if all read/read_write ports have a specific r_cost
+            r_cost_provided = mem_data.get("r_cost") is not None
+            if not r_cost_provided:
+                read_ports = [p for p in mem_data["ports"] if p["type"] in ["read", "read_write"]]
+                if read_ports:
+                    r_cost_provided = all(mem_data.get(f"r_cost_{p['name']}") is not None for p in read_ports)
+            
+            if not r_cost_provided:
+                self.invalidate(f"`r_cost` of {mem_name} is missing (global or port-specific), and is not automatically extracted using CACTI.")
+
+            # Check if global w_cost is provided or if all write/read_write ports have a specific w_cost
+            w_cost_provided = mem_data.get("w_cost") is not None
+            if not w_cost_provided:
+                write_ports = [p for p in mem_data["ports"] if p["type"] in ["write", "read_write"]]
+                if write_ports:
+                    w_cost_provided = all(mem_data.get(f"w_cost_{p['name']}") is not None for p in write_ports)
+            
+            if not w_cost_provided:
+                self.invalidate(f"`w_cost` of {mem_name} is missing (global or port-specific), and is not automatically extracted using CACTI.")
             if mem_data["area"] is None:
                 self.invalidate(f"`area` of {mem_name} is missing, and is not automatically extracted using CACTI.")
 

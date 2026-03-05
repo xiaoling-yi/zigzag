@@ -372,8 +372,8 @@ class CostModelEvaluation(CostModelEvaluationABC):
         """! Run the cost model evaluation."""
         self.calc_memory_utilization()
         self.calc_memory_word_access()
-        self.calc_energy()
         self.calc_latency()
+        self.calc_energy()
 
     @lru_cache(maxsize=512)
     def __get_shared_mem_list(
@@ -541,16 +541,73 @@ class CostModelEvaluation(CostModelEvaluationABC):
         energy."""
         # TODO: Interconnection energy
         self.calc_mac_energy_cost()
+        self.calc_interconnect_energy_cost()
+        self.calc_host_dma_energy_cost()
         self.calc_memory_energy_cost()
 
     def calc_mac_energy_cost(self) -> None:
         """! Calculate the dynamic MAC energy"""
         operational_array = self.accelerator.operational_array
+        # TODO: can we seperate the multiplier and adder and accumulator
+        # as well as the flexibility overhead
+        # methodology, sum(operation count * energy per operation) * flexibility overhead
         assert isinstance(
             operational_array, OperationalArray
         ), "This method expects an OperationalArray instance. Otherwise, the method should be overridden in a subclass."
         single_mac_energy = operational_array.unit.energy_cost
-        self.mac_energy = single_mac_energy * self.layer.total_mac_count
+        flex_overhead = getattr(operational_array, "flexibility_overhead", 1.0)
+        self.mac_energy = single_mac_energy * self.layer.total_mac_count * flex_overhead
+
+    def calc_interconnect_energy_cost(self):
+        try:
+            from cost_model.basic_syn_energy_data import BasicEnergyData
+        except ImportError:
+            self.interconnect_energy = 0
+            return
+
+        total_read_bits = 0
+        total_write_bits = 0
+
+        # Calculate bit transfers between L1 (SRAM) and L0 by accessing the highest memory level
+        for layer_op, accesses_per_level in self.memory_word_access.items():
+            if len(accesses_per_level) > 1:
+                sram_accesses = accesses_per_level[-1]
+                mem_op = self.memory_operand_links.layer_to_mem_op(layer_op)
+                sram_level = self.accelerator.get_memory_level(mem_op, len(accesses_per_level) - 1)
+
+                read_words = sram_accesses.get(DataDirection.RD_OUT_TO_LOW)
+                read_bw = sram_level.get_max_bandwidth(mem_op, DataDirection.RD_OUT_TO_LOW)
+                if read_bw:
+                    total_read_bits += read_words * read_bw
+
+                write_words = sram_accesses.get(DataDirection.WR_IN_BY_LOW)
+                write_bw = sram_level.get_max_bandwidth(mem_op, DataDirection.WR_IN_BY_LOW)
+                if write_bw:
+                    total_write_bits += write_words * write_bw
+
+        stages = 2  # default stages representing approx 4 banks
+        
+        energy_per_bit_read = BasicEnergyData.energy_interconnect_1_bit_per_read
+        energy_per_bit_write = BasicEnergyData.energy_interconnect_1_bit_per_write
+
+        read_energy = total_read_bits * stages * energy_per_bit_read
+        write_energy = total_write_bits * stages * energy_per_bit_write
+
+        self.interconnect_energy = read_energy + write_energy
+
+    def calc_host_dma_energy_cost(self):
+        try:
+            from cost_model.basic_syn_energy_data import BasicEnergyData
+        except ImportError:
+            self.host_dma_energy = 0
+            return
+
+        latency_ns = self.latency_total2 * 1.0  # assuming 1 cycle = 1 ns (1 GHz)
+
+        dma_energy = latency_ns * BasicEnergyData.dma_power * 1e3
+        riscv_energy = latency_ns * BasicEnergyData.riscv_host_power * 1e3
+        
+        self.host_dma_energy = dma_energy + riscv_energy
 
     def calc_memory_energy_cost(self):
         """! Computes the memories reading/writing energy by converting the access patterns in self.mapping to
@@ -574,12 +631,15 @@ class CostModelEvaluation(CostModelEvaluationABC):
             breakdown: list[float] = []  # Stores the energy breakdown of a single layer operand (W, I, ...)
             breakdown_further: list[AccessEnergy] = []
             for access_count, memory_level in zip(mem_access_list_per_op, memory_levels):
-                energy_cost_per_read_out = memory_level.read_energy
-                energy_cost_per_write_in = memory_level.write_energy
-                read_out_energy_to_above = access_count.get(DataDirection.RD_OUT_TO_HIGH) * energy_cost_per_read_out
-                write_in_energy_from_above = access_count.get(DataDirection.WR_IN_BY_HIGH) * energy_cost_per_write_in
-                read_out_energy_to_below = access_count.get(DataDirection.RD_OUT_TO_LOW) * energy_cost_per_read_out
-                write_in_energy_from_below = access_count.get(DataDirection.WR_IN_BY_LOW) * energy_cost_per_write_in
+                energy_cost_per_read_out_to_above = memory_level.get_read_energy(mem_op, DataDirection.RD_OUT_TO_HIGH)
+                energy_cost_per_write_in_from_above = memory_level.get_write_energy(mem_op, DataDirection.WR_IN_BY_HIGH)
+                energy_cost_per_read_out_to_below = memory_level.get_read_energy(mem_op, DataDirection.RD_OUT_TO_LOW)
+                energy_cost_per_write_in_from_below = memory_level.get_write_energy(mem_op, DataDirection.WR_IN_BY_LOW)
+
+                read_out_energy_to_above = access_count.get(DataDirection.RD_OUT_TO_HIGH) * energy_cost_per_read_out_to_above
+                write_in_energy_from_above = access_count.get(DataDirection.WR_IN_BY_HIGH) * energy_cost_per_write_in_from_above
+                read_out_energy_to_below = access_count.get(DataDirection.RD_OUT_TO_LOW) * energy_cost_per_read_out_to_below
+                write_in_energy_from_below = access_count.get(DataDirection.WR_IN_BY_LOW) * energy_cost_per_write_in_from_below
                 total_read_out_energy = read_out_energy_to_above + read_out_energy_to_below
                 total_write_in_energy = write_in_energy_from_above + write_in_energy_from_below
                 total_energy_cost_memory = total_read_out_energy + total_write_in_energy
@@ -601,7 +661,7 @@ class CostModelEvaluation(CostModelEvaluationABC):
         self.mem_energy_breakdown = mem_energy_breakdown
         self.mem_energy_breakdown_further = mem_energy_breakdown_further
         self.mem_energy = energy_total
-        self.energy_total: float = self.mem_energy + self.mac_energy
+        self.energy_total: float = self.mem_energy + self.mac_energy + getattr(self, "interconnect_energy", 0) + getattr(self, "host_dma_energy", 0)
         logger.debug("Ran %s. Total energy = %f", self, self.energy_total)
 
     def calc_latency(self) -> None:

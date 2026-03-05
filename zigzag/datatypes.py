@@ -20,8 +20,10 @@ class OperandABC(metaclass=ABCMeta):
         """Protect the class variable from reassignment (as this would invalidate the stored hash value)"""
         return self.__name
 
-    def __eq__(self, other: "OperandABC"):  # type: ignore
-        return self.__hash == other.__hash  # pylint: disable=W0212
+    def __eq__(self, other: Any):
+        if not isinstance(other, OperandABC):
+            return False
+        return self.__hash == other._OperandABC__hash  # pylint: disable=W0212
 
     def __hash__(self):
         """Optimize performance by statically storing the hash"""

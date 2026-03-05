@@ -41,6 +41,8 @@ class MemoryPort:
         bandwidth_min: int,
         bandwidth_max: int,
         port_id: int | None = None,
+        r_cost: float | None = None,
+        w_cost: float | None = None,
     ):
         """
         Collect all the physical memory port related information here.
@@ -49,11 +51,15 @@ class MemoryPort:
         @param bandwidth_max: bit/cc
         @param type: read_only (read), write_only (write), read_write (read_write)
         @param port_id: port index per memory
+        @param r_cost: read energy cost (pJ/access)
+        @param w_cost: write energy cost (pJ/access)
         """
         self.name = port_name
         self.bw_min = bandwidth_min
         self.bw_max = bandwidth_max
         self.type = type
+        self.r_cost = r_cost
+        self.w_cost = w_cost
         self.served_op_lv_dir: list[OperandDirection] = []
 
         #  to give each port a unique id number
