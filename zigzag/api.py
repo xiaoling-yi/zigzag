@@ -31,7 +31,7 @@ def get_hardware_performance_zigzag(
     mapping: str,
     *,
     temporal_mapping_search_engine: Literal["loma"] | Literal["salsa"] = "loma",
-    temporal_mapping_type: Literal["uneven"] | Literal["even"] = "uneven",
+    temporal_mapping_type: Literal["uneven"] | Literal["even"] = "even",
     opt: str = "latency",
     dump_folder: str = f"outputs/{datetime.now()}",
     pickle_filename: str | None = None,
