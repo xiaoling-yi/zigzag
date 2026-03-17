@@ -42,7 +42,7 @@ class VisualizationStage(Stage):
 
     def __save_loop_ordering(self, cme: CostModelEvaluation):
         # Save loop ordering for all CMEs to single file (append)
-        with open(self.loop_ordering_file, "a", encoding="UTF-8") as f:
+        with open(self.loop_ordering_file, "w", encoding="UTF-8") as f:
             with redirect_stdout(f):
                 print_mapping(cme)
 

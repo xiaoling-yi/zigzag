@@ -225,6 +225,9 @@ class CostModelEvaluationABC(metaclass=ABCMeta):
                         "data_onloading": self.latency_total1 - self.latency_total0,
                         "computation": self.latency_total0,
                         "data_offloading": self.latency_total2 - self.latency_total1,
+                        "ideal_cycle": self.ideal_cycle,
+                        "ideal_temporal_cycle": self.ideal_temporal_cycle,
+                        "total_latency": self.latency_total0,
                     },
                     "spatial": {
                         "mac_utilization": {
