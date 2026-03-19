@@ -23,6 +23,7 @@ from zigzag.stages.results.save import CompleteSaveStage, PickleSaveStage, Simpl
 from zigzag.stages.results.visualization import VisualizationStage
 from zigzag.stages.stage import StageCallable
 from zigzag.stages.workload_iterator import WorkloadStage
+from src.accelerator_config.accelerator_config import SystemConfig
 
 
 def get_hardware_performance_zigzag(
@@ -30,6 +31,7 @@ def get_hardware_performance_zigzag(
     accelerator: str,
     mapping: str,
     *,
+    system_config: SystemConfig | None = None,
     temporal_mapping_search_engine: Literal["loma"] | Literal["salsa"] = "loma",
     temporal_mapping_type: Literal["uneven"] | Literal["even"] = "even",
     opt: str = "latency",
@@ -133,6 +135,7 @@ def get_hardware_performance_zigzag(
         accelerator=accelerator,
         workload=workload,
         mapping=mapping,
+        system_config=system_config,
         dump_folder=dump_folder,
         pickle_filename=pickle_filename,
         loma_lpf_limit=lpf_limit,

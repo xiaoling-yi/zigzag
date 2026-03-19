@@ -20,6 +20,10 @@ from zigzag.mapping.temporal_mapping import TemporalMapping
 from zigzag.utils import json_repr_handler, pickle_deepcopy
 from zigzag.workload.layer_node import LayerNode
 
+from src.accelerator_config.accelerator_config import SystemConfig
+from src.manual_cost_model.basic_syn_energy_data import BasicEnergyData
+from src.manual_cost_model.energy_calculator import EnergyCalculator
+
 if TYPE_CHECKING:
     from zigzag.workload.layer_attributes import MemoryOperandLinks
 
@@ -319,6 +323,7 @@ class CostModelEvaluation(CostModelEvaluationABC):
         self,
         *,
         accelerator: Accelerator,
+        system_config: SystemConfig | None,
         layer: LayerNode,
         spatial_mapping: SpatialMappingInternal,
         spatial_mapping_int: SpatialMappingInternal,
@@ -333,6 +338,7 @@ class CostModelEvaluation(CostModelEvaluationABC):
         @param access_same_data_considered_as_no_access (optional)
         """
         self.accelerator = accelerator
+        self.system_config: SystemConfig | None = system_config
         self.layer: LayerNode = layer
         self.spatial_mapping = spatial_mapping
         self.spatial_mapping_int = spatial_mapping_int  # the original spatial mapping without decimal
@@ -543,7 +549,10 @@ class CostModelEvaluation(CostModelEvaluationABC):
         """! Calculates the energy cost of this cost model evaluation by calculating the memory reading/writing
         energy."""
         # TODO: Interconnection energy
-        self.calc_mac_energy_cost()
+        if isinstance(self.system_config, SystemConfig):
+            self.calc_versacore_energy_cost()
+        else:
+            self.calc_mac_energy_cost()
         self.calc_interconnect_energy_cost()
         self.calc_host_dma_energy_cost()
         self.calc_memory_energy_cost()
@@ -561,13 +570,55 @@ class CostModelEvaluation(CostModelEvaluationABC):
         flex_overhead = getattr(operational_array, "flexibility_overhead", 1.0)
         self.mac_energy = single_mac_energy * self.layer.total_mac_count * flex_overhead
 
-    def calc_interconnect_energy_cost(self):
-        try:
-            from cost_model.basic_syn_energy_data import BasicEnergyData
-        except ImportError:
-            self.interconnect_energy = 0
-            return
+    def calc_versacore_energy_cost(self) -> None:
+        """! Calculate the dynamic energy of VersaCore's MAC components"""
+        versacore_energy_calculator = EnergyCalculator(self.system_config)
+        spatial_loop_dim_size: list[tuple] = self.mapping_int.spatial_mapping.spatial_loop_dim_size
+        mu = next(size for dim, size in spatial_loop_dim_size if str(dim) == "M")
+        nu = next(size for dim, size in spatial_loop_dim_size if str(dim) == "N")
+        ku = next(size for dim, size in spatial_loop_dim_size if str(dim) == "K")
+        spatial_loop_size: int = int(np.prod([size for _, size in spatial_loop_dim_size]))
+        temoporal_versacore_access_count: int = ceil(self.layer.total_mac_count / spatial_loop_size)
+        array_shape_count = len(versacore_energy_calculator.config.array_shapes)
+        a_bitwidth = versacore_energy_calculator.config.a_element_width
+        b_bitwidth = versacore_energy_calculator.config.b_element_width
+        c_bitwidth = versacore_energy_calculator.config.c_element_width
+        # below is copied from src/manual_cost_model/energy_calculator.py
+        breakdown = versacore_energy_calculator.calc_versacore_energy_breakdown(
+            temoporal_versacore_access_count,
+            mu,
+            nu,
+            ku,
+            array_shape_count,
+            a_bitwidth,
+            b_bitwidth,
+            c_bitwidth
+        )
+        # energy for control logic, i.e., the counters
+        control_energy = BasicEnergyData.verascore_control * self.latency_total0 * 1e3
 
+        compute_energy = (
+            breakdown["multiplier_energy"]
+            + breakdown["adder_tree_energy"]
+            + breakdown["accumulator_energy"]
+        )
+
+        if versacore_energy_calculator.config.array_shape_count == 2:
+            compute_energy = compute_energy * BasicEnergyData.dual_su_versacore_energy_overhead_scale_factor
+
+        if versacore_energy_calculator.config.array_shape_count == 3:
+            compute_energy = compute_energy * (BasicEnergyData.dual_su_versacore_energy_overhead_scale_factor + 1 * BasicEnergyData.inc_su_versacore_energy_overhead_scale_factor)
+
+        converter_energy = breakdown["converter_energy"]
+
+        self.mac_energy = compute_energy + control_energy + converter_energy
+        self.mac_energy_breakdown: dict[str, float] = {
+            "control_energy": control_energy,
+            "compute_energy": compute_energy,
+            "converter_energy": converter_energy,
+        }
+
+    def calc_interconnect_energy_cost(self):
         total_read_bits = 0
         total_write_bits = 0
 
@@ -599,17 +650,11 @@ class CostModelEvaluation(CostModelEvaluationABC):
         self.interconnect_energy = read_energy + write_energy
 
     def calc_host_dma_energy_cost(self):
-        try:
-            from cost_model.basic_syn_energy_data import BasicEnergyData
-        except ImportError:
-            self.host_dma_energy = 0
-            return
-
-        latency_ns = self.latency_total2 * 1.0  # assuming 1 cycle = 1 ns (1 GHz)
+        latency_ns = self.latency_total0 * 1.0  # assuming 1 cycle = 1 ns (1 GHz)
 
         dma_energy = latency_ns * BasicEnergyData.dma_power * 1e3
         riscv_energy = latency_ns * BasicEnergyData.riscv_host_power * 1e3
-        
+
         self.host_dma_energy = dma_energy + riscv_energy
 
     def calc_memory_energy_cost(self):
@@ -664,7 +709,7 @@ class CostModelEvaluation(CostModelEvaluationABC):
         self.mem_energy_breakdown = mem_energy_breakdown
         self.mem_energy_breakdown_further = mem_energy_breakdown_further
         self.mem_energy = energy_total
-        self.energy_total: float = self.mem_energy + self.mac_energy + getattr(self, "interconnect_energy", 0) + getattr(self, "host_dma_energy", 0)
+        self.energy_total: float = self.mem_energy + self.mac_energy + self.interconnect_energy + self.host_dma_energy
         logger.debug("Ran %s. Total energy = %f", self, self.energy_total)
 
     def calc_latency(self) -> None:

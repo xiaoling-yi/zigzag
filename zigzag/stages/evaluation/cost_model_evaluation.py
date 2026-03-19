@@ -10,6 +10,8 @@ from zigzag.mapping.temporal_mapping import TemporalMapping
 from zigzag.stages.stage import Stage, StageCallable
 from zigzag.workload.layer_node import LayerNode
 
+from src.accelerator_config.accelerator_config import SystemConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,6 +28,7 @@ class CostModelStage(Stage):
         spatial_mapping_int: SpatialMappingInternal,
         temporal_mapping: TemporalMapping,
         access_same_data_considered_as_no_access: bool = True,
+        system_config: SystemConfig | None = None,
         **kwargs: Any,
     ):
         super().__init__(list_of_callables, **kwargs)
@@ -36,6 +39,7 @@ class CostModelStage(Stage):
         self.spatial_mapping_int = spatial_mapping_int
         self.temporal_mapping = temporal_mapping
         self.access_same_data_considered_as_no_access = access_same_data_considered_as_no_access
+        self.system_config = system_config
 
     def run(self):
         """! Run the cost model stage by calling the internal zigzag cost model with the correct inputs."""
@@ -52,6 +56,7 @@ class CostModelStage(Stage):
         else:
             cme = CostModelEvaluation(
                 accelerator=self.accelerator,
+                system_config=self.system_config,
                 layer=self.layer,
                 spatial_mapping=self.spatial_mapping,
                 spatial_mapping_int=self.spatial_mapping_int,
