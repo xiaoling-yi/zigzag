@@ -937,9 +937,10 @@ class CostModelEvaluation(CostModelEvaluationABC):
         total_computation_cycles = ceil(self.temporal_mapping.total_cycle * self.cycles_per_op) + self.stall_slack_comb
         # Get the total amount of cycles that we can use for loading during computation
         # TODO: make this more accurate by subtracting the final iteration cycles
-        cycles_surplus = max(
-            0, ((port.bw_max - total_req_bw_aver_computation) / port.bw_max) * total_computation_cycles
-        )
+        # cycles_surplus = max(
+        #     0, ((port.bw_max - total_req_bw_aver_computation) / port.bw_max) * total_computation_cycles
+        # )
+        cycles_surplus = 0 # disable the feature of borrowing cycles from computation because it can lead to impossible nagative onloading cycles
         # Reduce the loading cycles during loading with the surplus
         remaining_loading_cycles, reductions = self.reduce_balanced(
             total_required_cycles, min_required_cycles, cycles_surplus
