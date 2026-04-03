@@ -47,6 +47,8 @@ class CostModelEvaluationABC(metaclass=ABCMeta):
         self.memory_word_access: dict[LayerOperand, list[MemoryAccesses]]
         self.mac_energy: float
         self.mem_energy: float
+        self.interconnect_energy: float
+        self.host_dma_energy: float
         self.energy_total: float
         self.data_onloading_cycle: float
         self.data_offloading_cycle: float
@@ -72,6 +74,8 @@ class CostModelEvaluationABC(metaclass=ABCMeta):
         # Energy
         result.mac_energy = self.mac_energy + other.mac_energy
         result.mem_energy = self.mem_energy + other.mem_energy
+        result.interconnect_energy = getattr(self, "interconnect_energy", 0.0) + getattr(other, "interconnect_energy", 0.0)
+        result.host_dma_energy = getattr(self, "host_dma_energy", 0.0) + getattr(other, "host_dma_energy", 0.0)
         result.energy_total = self.energy_total + other.energy_total
 
         for layer_op, breakdown_this in self.mem_energy_breakdown.items():
@@ -168,6 +172,10 @@ class CostModelEvaluationABC(metaclass=ABCMeta):
         # Energy
         result.mac_energy *= number
         result.mem_energy *= number
+        if hasattr(result, "interconnect_energy"):
+            result.interconnect_energy *= number
+        if hasattr(result, "host_dma_energy"):
+            result.host_dma_energy *= number
         result.energy_total *= number
 
         result.mem_energy_breakdown = {
@@ -222,6 +230,8 @@ class CostModelEvaluationABC(metaclass=ABCMeta):
                         "energy_total": self.energy_total,
                         "operational_energy": self.mac_energy,
                         "memory_energy": self.mem_energy,
+                        "interconnect_energy": getattr(self, "interconnect_energy", 0.0),
+                        "host_dma_energy": getattr(self, "host_dma_energy", 0.0),
                         "memory_energy_breakdown_per_level": self.mem_energy_breakdown,
                         "memory_energy_breakdown_per_level_per_operand": self.mem_energy_breakdown_further,
                     },
@@ -268,6 +278,8 @@ class CumulativeCME(CostModelEvaluationABC):
 
         self.mac_energy: float = 0.0
         self.mem_energy: float = 0.0
+        self.interconnect_energy: float = 0.0
+        self.host_dma_energy: float = 0.0
         self.energy_total: float = 0.0
         self.data_onloading_cycle: float = 0.0
         self.data_offloading_cycle: float = 0.0
